@@ -165,26 +165,29 @@ class Data2QA(nn.Module):
         output = self.seq2seq_model(inputs_embeds=inputs_embeds, attention_mask=attention_mask, labels=labels)
         return output
 
-    def forward(self, input_arrays, labels=None, return_model_detail=False):
-        input_embeds = []
-        for i in input_arrays:
-            tensor_array = torch.tensor(i['array']).to(self.device)
-            if i['type'] == 'audio':
-                input_embeds.append(torch.squeeze(
-                    self.enc_to_dec_proj_speech(
-                        self.length_adapters_speech(
-                            tensor_array.transpose(1, 2)).transpose(1, 2))))
-            if i['type'] == 'image':
-                input_embeds.append(torch.squeeze(
-                    self.enc_to_dec_proj_cv(
-                        self.length_adapters_cv(
-                            tensor_array.transpose(1, 2)).transpose(1, 2))))
-            if i['type'] == 'text':
-                input_embeds.append(torch.squeeze(
-                    self.enc_to_dec_proj_nlp(
-                        self.length_adapters_nlp(
-                            tensor_array.transpose(1, 2)).transpose(1, 2))))
-        input_embeds = pad_sequence(input_embeds, batch_first=True, padding_value=-100).to(self.device)
+    def forward(self, input_batch, labels=None, return_model_detail=False):
+        tensor_array = []
+        for batch in input_batch:
+            input_embeds = []
+            for i in batch:
+                tensor = torch.tensor(i['array']).to(self.device)
+                if i['type'] == 'audio':
+                    input_embeds.append(torch.squeeze(
+                        self.enc_to_dec_proj_speech(
+                            self.length_adapters_speech(
+                                tensor.transpose(1, 2)).transpose(1, 2))))
+                if i['type'] == 'image':
+                    input_embeds.append(torch.squeeze(
+                        self.enc_to_dec_proj_cv(
+                            self.length_adapters_cv(
+                                tensor.transpose(1, 2)).transpose(1, 2))))
+                if i['type'] == 'text':
+                    input_embeds.append(torch.squeeze(
+                        self.enc_to_dec_proj_nlp(
+                            self.length_adapters_nlp(
+                                tensor.transpose(1, 2)).transpose(1, 2))))
+            tensor_array.append(torch.cat(input_embeds).to(self.device).squeeze(0))
+        input_embeds = pad_sequence(tensor_array, batch_first=True, padding_value=-100).to(self.device)
         return_dict = {}
         outputs = self.cal_loss(inputs_embeds=input_embeds, labels=labels)
         return_dict['logits'] = torch.argmax(outputs['logits'], -1)

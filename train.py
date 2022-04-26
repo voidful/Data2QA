@@ -20,11 +20,11 @@ def main(arg=None):
         audio = batch["audio"]
         new_batch = {}
         with torch.no_grad():
-            new_batch["input_arrays"] = {
+            new_batch["input_batch"] = [{
                 "type": 'audio',
                 'array': model.speech_encoder_model(
                     **model.speech_feature_extractor(audio["array"], sampling_rate=16000, return_tensors="pt").to(
-                        model.device)).last_hidden_state}
+                        model.device)).last_hidden_state}]
         new_batch["length"] = audio["array"].size
         sent = batch["text"] if 'text' in batch else batch["sentence"]
         sent = sent.lower()
@@ -72,16 +72,10 @@ def main(arg=None):
         def __call__(self, features: List[Dict[str, Union[List[int], torch.Tensor]]]) -> Dict[str, torch.Tensor]:
             batch = {}
             label_features = []
-            input_arrays = []
-            input_mask_nlp = []
-            input_mask_cv = []
-            input_mask_speech = []
+            input_batch = []
             for feature in features:
                 label_features.append({"input_ids": feature['labels']})
-                input_arrays.append(feature['input_arrays'])
-                if feature['input_arrays']['type'] == 'audio':
-                    input_mask_nlp.append(torch.tensor())
-
+                input_batch.append(feature['input_batch'])
 
             labels_batch = self.tokenizer.pad(
                 label_features,
@@ -96,9 +90,8 @@ def main(arg=None):
             # cut bos token here as it's append later anyway
             if self.tokenizer.bos_token_id and (labels_batch[:, 0] == self.tokenizer.bos_token_id).all().cpu().item():
                 labels_batch = labels_batch[:, 1:]
-
             batch['labels'] = labels_batch
-            batch['input_arrays'] = input_arrays
+            batch['input_batch'] = input_batch
             return batch
 
     class FreezingCallback(TrainerCallback):
